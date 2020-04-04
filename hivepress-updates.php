@@ -2,7 +2,7 @@
 /**
  * Plugin Name: HivePress Updates
  * Description: Get updates for purchased themes and extensions.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: HivePress
  * Author URI: https://hivepress.io/
  * Text Domain: hivepress-updates
@@ -18,6 +18,8 @@ defined( 'ABSPATH' ) || exit;
 add_filter(
 	'hivepress/v1/extensions',
 	function( $extensions ) {
-		return array_merge( $extensions, [ __DIR__ ] );
+		$extensions['updates'] = __DIR__;
+
+		return $extensions;
 	}
 );
