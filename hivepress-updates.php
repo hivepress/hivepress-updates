@@ -2,7 +2,7 @@
 /**
  * Plugin Name: HivePress Updates
  * Description: Get updates for purchased themes and extensions.
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: HivePress
  * Author URI: https://hivepress.io/
  * Text Domain: hivepress-updates
