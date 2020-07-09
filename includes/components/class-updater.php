@@ -31,6 +31,9 @@ final class Updater extends Component {
 			return;
 		}
 
+		// Check theme updates.
+		add_filter( 'pre_set_site_transient_update_themes', [ $this, 'check_theme_updates' ] );
+
 		// Check plugin updates.
 		add_filter( 'pre_set_site_transient_update_plugins', [ $this, 'check_plugin_updates' ] );
 
@@ -41,6 +44,71 @@ final class Updater extends Component {
 	}
 
 	/**
+	 * Gets license key.
+	 *
+	 * @return string
+	 */
+	protected function get_license_key() {
+		return implode( ',', explode( "\n", get_option( 'hp_hivepress_license_key' ) ) );
+	}
+
+	/**
+	 * Gets themes.
+	 *
+	 * @return array
+	 */
+	protected function get_themes() {
+
+		// Get license key.
+		$license_key = $this->get_license_key();
+
+		// Get cache key.
+		$cache_key = 'themes_' . md5( $license_key );
+
+		// Get cached themes.
+		$themes = hivepress()->cache->get_cache( $cache_key );
+
+		if ( is_null( $themes ) ) {
+			$themes = [];
+
+			// Get API response.
+			$response = json_decode(
+				wp_remote_retrieve_body(
+					wp_remote_get(
+						'https://store.hivepress.io/api/v1/products?' . http_build_query(
+							[
+								'type'        => 'theme',
+								'license_key' => $license_key,
+							]
+						)
+					)
+				),
+				true
+			);
+
+			if ( is_array( $response ) && isset( $response['data'] ) ) {
+				foreach ( $response['data'] as $theme ) {
+
+					// Add theme.
+					$themes[ $theme['slug'] ] = [
+						'theme'        => $theme['slug'],
+						'new_version'  => $theme['version'],
+						'requires'     => $theme['wp_min_version'],
+						'requires_php' => $theme['php_version'],
+						'url'          => $theme['buy_url'],
+						'package'      => $theme['download_url'],
+					];
+				}
+
+				// Cache themes.
+				hivepress()->cache->set_cache( $cache_key, null, $themes, HOUR_IN_SECONDS );
+			}
+		}
+
+		return $themes;
+	}
+
+	/**
 	 * Gets plugins.
 	 *
 	 * @return array
@@ -48,7 +116,7 @@ final class Updater extends Component {
 	protected function get_plugins() {
 
 		// Get license key.
-		$license_key = implode( ',', explode( "\n", get_option( 'hp_hivepress_license_key' ) ) );
+		$license_key = $this->get_license_key();
 
 		// Get cache key.
 		$cache_key = 'plugins_' . md5( $license_key );
@@ -108,11 +176,39 @@ final class Updater extends Component {
 				}
 
 				// Cache plugins.
-				hivepress()->cache->set_cache( $cache_key, null, $plugins, DAY_IN_SECONDS );
+				hivepress()->cache->set_cache( $cache_key, null, $plugins, HOUR_IN_SECONDS );
 			}
 		}
 
 		return $plugins;
+	}
+
+	/**
+	 * Checks theme updates.
+	 *
+	 * @param object $transient Transient object.
+	 * @return object
+	 */
+	public function check_theme_updates( $transient ) {
+		if ( ! empty( $transient->checked ) ) {
+
+			// Get themes.
+			$themes = $this->get_themes();
+
+			foreach ( $themes as $theme ) {
+
+				// Get version.
+				$version = hp\get_array_value( $transient->checked, $theme['theme'] );
+
+				if ( $version && version_compare( $version, $theme['new_version'], '<' ) ) {
+
+					// Add update.
+					$transient->response[ $theme['theme'] ] = $theme;
+				}
+			}
+		}
+
+		return $transient;
 	}
 
 	/**
